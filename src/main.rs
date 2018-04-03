@@ -41,6 +41,10 @@ fn argparse<'a, 'b>() -> clap::App<'a, 'b> {
                                 .help("hh:mm:ss/mm:ss")
                                 .required(true)
                                 .index(1)))
+        .subcommand(SubCommand::with_name("volume").about("Get or set the volume of the speaker")
+                        .arg(Arg::with_name("VOLUME")
+                                .help("Percent volume to set speaker to 0-100")
+                                .index(1)))
         .subcommand(SubCommand::with_name("rooms").about("List all of your speakers"))
 }
 
@@ -110,6 +114,13 @@ fn main() {
                 i.to_string()
             })
         },
+        ("volume", Some(sub)) => {
+            if let Some(volume) = sub.value_of("VOLUME") {
+                speaker.set_volume(volume.parse().unwrap());
+            } else {
+                info!("{}", speaker.volume().unwrap());
+            }
+        },
         ("seek", Some(sub)) => {
             let a = sub.value_of("TIMESTAMP").expect("timestamp");
 
@@ -146,8 +157,24 @@ fn main() {
                 stdout().flush().unwrap();
             });
 
-            let devices = sonos::discover();
-            println!("{:#?}", devices);
+            let devices = sonos::discover().unwrap();
+
+            let mut rooms = std::collections::HashMap::new();
+
+            for device in devices {
+                let coordinator = device.coordinator().unwrap();
+
+                let mut room = rooms.entry(coordinator).or_insert(Vec::new());
+                room.push(device);
+            }
+
+            for (key, value) in rooms {
+                info!("Controller: {}", key);
+
+                for device in value {
+                    info!("d:     {}", device.name);
+                }
+            }
         },
         _ => {
             panic!();
@@ -168,7 +195,7 @@ impl Track {
     pub fn new(speaker: &Speaker) -> Result<Track, sonos::Error> {
         let track = speaker.track()?;
 
-        Ok(Track {
+        Ok(Self {
             title: track.title,
             artist: track.artist,
             album: track.album,
@@ -192,6 +219,32 @@ impl std::fmt::Display for Track {
         const PROG_BAR_LEN: usize = 25;
         let percent_played = ((self.running_time.as_secs() as f64 / self.duration.as_secs() as f64) * PROG_BAR_LEN as f64) as usize;
         write!(f, " [{}{}]", "\u{2587}".repeat(percent_played), "-".repeat(PROG_BAR_LEN - percent_played))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Volume {
+    volume: u8,
+}
+
+impl Volume {
+    pub fn new(vol: u8) -> Volume {
+        Self {
+            volume: vol,
+        }
+    }
+}
+
+impl std::fmt::Display for Volume {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        const MAX_VOLUME: usize = 100;
+        const PROG_BAR_LEN: usize = 25;
+
+        write!(f, "\u{1F50A}  {}/{}", self.volume, MAX_VOLUME)?;
+
+        let percent = (self.volume as usize / MAX_VOLUME) * PROG_BAR_LEN;
+
+        write!(f, " [{}{}]", "\u{2587}".repeat(percent), "-".repeat(PROG_BAR_LEN - percent))
     }
 }
 
