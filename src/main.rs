@@ -13,6 +13,8 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+extern crate strsim;
+
 use std::net::IpAddr;
 use sonos::Speaker;
 
@@ -45,7 +47,8 @@ fn argparse<'a, 'b>() -> clap::App<'a, 'b> {
                         .arg(Arg::with_name("VOLUME")
                                 .help("Percent volume to set speaker to 0-100")
                                 .index(1)))
-        .subcommand(SubCommand::with_name("rooms").about("List all of your speakers"))
+        .subcommand(SubCommand::with_name("rooms").about("List all of your speakers")
+                        .arg(Arg::with_name("invalidate").help("Detect new speakers and room arrangements")))
 }
 
 fn setup_logger() -> Result<(), fern::InitError> {
@@ -89,10 +92,44 @@ fn main() {
     let speaker = if let Ok(ip) = controller.parse::<IpAddr>() {
         Speaker::from_ip(ip).expect("speaker")
     } else {
-        // sonos::discover().unwrap().iter()
-        //    .find(|d| d.name == controller)
-        //    .unwrap()
-        panic!("not implemented");
+        let mut speakers = discover(true, false);
+
+        let mut min = 100;
+
+        speakers.sort_by(|a, b| {
+            let a = strsim::damerau_levenshtein(&a.name, controller);
+            let b = strsim::damerau_levenshtein(&b.name, controller);
+
+            if a < min { min = a; }
+            if b < min { min = b; }
+
+            a.cmp(&b)
+        });
+
+        if min > 5 {
+            panic!("Couldn't find a speaker by that name");
+        }
+
+        let speaker = speakers.remove(0);
+
+        if min > 2 {
+            use std::io::{Read, Write};
+            print!("Couldn't find speaker '{}', did you mean {}? [Y/n] ", controller, speaker.name);
+            std::io::stdout().flush();
+
+            let input: char = std::io::stdin()
+                .bytes()
+                .next()
+                .and_then(|result| result.ok())
+                .map(|byte| byte as char)
+                .unwrap();
+
+            if input != 'y' && input != 'Y' {
+                panic!();
+            }
+        }
+
+        speaker
     };
 
     match args.subcommand() {
@@ -136,28 +173,8 @@ fn main() {
 
             speaker.seek(&duration).expect("couldn't seek");
         },
-        ("rooms", _) => {
-            std::thread::spawn(|| {
-                use std::io::{Write, stdout};
-
-                const TWO: &str = "\u{23F2}\u{FE0F}  Give me 2 secs to discover your devices...";
-                const ONE: &str = "\u{23F2}\u{FE0F}  Give me a sec to discover your devices...";
-
-                print!("{}\r", TWO);
-                stdout().flush().unwrap();
-
-                std::thread::sleep(std::time::Duration::from_millis(1000));
-
-                print!("{}{}\r", ONE, " ".repeat(TWO.len() - ONE.len()));
-                stdout().flush().unwrap();
-
-                std::thread::sleep(std::time::Duration::from_millis(999));
-
-                print!("{}\r", " ".repeat(TWO.len()));
-                stdout().flush().unwrap();
-            });
-
-            let devices = sonos::discover().unwrap();
+        ("rooms", Some(sub)) => {
+            let devices = discover(true, sub.is_present("invalidate"));
 
             let mut rooms = std::collections::HashMap::new();
 
@@ -180,6 +197,57 @@ fn main() {
             panic!();
         }
     }
+}
+
+pub fn discover(pretty: bool, invalidate: bool) -> Vec<sonos::Speaker> {
+    use serde::Serialize;
+
+    const CACHE_FILE_NAME: &str = "/tmp/sonos-cli-speakers";
+
+    if !invalidate {
+        if let Ok(cache) = std::fs::File::open(CACHE_FILE_NAME) {
+            let cache: Vec<IpAddr> = serde_json::from_reader(std::io::BufReader::new(cache))
+                                                .unwrap();
+
+            return cache.iter()
+                .map(|i| sonos::Speaker::from_ip(*i).unwrap())
+                .collect();
+        }
+    }
+
+    if pretty {
+        std::thread::spawn(|| {
+            use std::io::{Write, stdout};
+
+            const TWO: &str = "\u{23F2}\u{FE0F}  Give me 2 secs to discover your devices...";
+            const ONE: &str = "\u{23F2}\u{FE0F}  Give me a sec to discover your devices...";
+
+            print!("{}\r", TWO);
+            stdout().flush().unwrap();
+
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+
+            print!("{}{}\r", ONE, " ".repeat(TWO.len() - ONE.len()));
+            stdout().flush().unwrap();
+
+            std::thread::sleep(std::time::Duration::from_millis(999));
+
+            print!("{}\r", " ".repeat(TWO.len()));
+            stdout().flush().unwrap();
+        });
+    }
+
+    let speakers = sonos::discover().unwrap();
+
+    let writer = std::fs::File::create(CACHE_FILE_NAME).unwrap();
+    let mut serializer = serde_json::Serializer::new(writer);
+
+    speakers.iter()
+        .map(|s| s.ip)
+        .collect::<Vec<IpAddr>>()
+        .serialize(&mut serializer).unwrap();
+
+    speakers
 }
 
 #[derive(Serialize, Deserialize, Debug)]

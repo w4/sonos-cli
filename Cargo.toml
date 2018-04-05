@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jordan Doyle <jordan@9t9t9.com>"]
 
 [dependencies]
-sonos = { path = "../soncon/sonos.rs" }
+sonos = ""
 clap = ""
 log = ""
 fern = ""
@@ -13,3 +13,5 @@ chrono = ""
 serde = ""
 serde_derive = ""
 serde_json = ""
+
+strsim = ""
