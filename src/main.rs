@@ -239,13 +239,16 @@ pub fn discover(pretty: bool, invalidate: bool) -> Vec<sonos::Speaker> {
 
     let speakers = sonos::discover().unwrap();
 
-    let writer = std::fs::File::create(CACHE_FILE_NAME).unwrap();
-    let mut serializer = serde_json::Serializer::new(writer);
+    {
+        // write IP addresses of all known speakers to cache
+        let writer = std::fs::File::create(CACHE_FILE_NAME).unwrap();
+        let mut serializer = serde_json::Serializer::new(writer);
 
-    speakers.iter()
-        .map(|s| s.ip)
-        .collect::<Vec<IpAddr>>()
-        .serialize(&mut serializer).unwrap();
+        speakers.iter()
+            .map(|s| s.ip)
+            .collect::<Vec<IpAddr>>()
+            .serialize(&mut serializer).unwrap();
+    }
 
     speakers
 }
