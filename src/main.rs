@@ -23,7 +23,7 @@ fn argparse<'a, 'b>() -> clap::App<'a, 'b> {
 
     App::new("sonos")
         .version(crate_version!())
-        .author("Jordan Doyle <jordan@9t9t9.com>")
+        .author("Jordan Doyle <jordan@doyle.la>")
         .about("Control your Sonos using the command line")
         .setting(AppSettings::SubcommandRequired)
         .arg(Arg::with_name("controller")
