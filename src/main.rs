@@ -155,7 +155,7 @@ fn main() {
             if let Some(volume) = sub.value_of("VOLUME") {
                 speaker.set_volume(volume.parse().unwrap());
             } else {
-                info!("{}", speaker.volume().unwrap());
+                info!("{}", Volume::new(speaker.volume().unwrap(), speaker.muted().unwrap()));
             }
         },
         ("seek", Some(sub)) => {
@@ -299,12 +299,14 @@ impl std::fmt::Display for Track {
 #[derive(Serialize, Deserialize, Debug)]
 struct Volume {
     volume: u8,
+    muted: bool,
 }
 
 impl Volume {
-    pub fn new(vol: u8) -> Volume {
+    pub fn new(vol: u8, muted: bool) -> Volume {
         Self {
             volume: vol,
+            muted,
         }
     }
 }
@@ -314,9 +316,15 @@ impl std::fmt::Display for Volume {
         const MAX_VOLUME: usize = 100;
         const PROG_BAR_LEN: usize = 25;
 
-        write!(f, "\u{1F50A}  {}/{}", self.volume, MAX_VOLUME)?;
+        let pictogram = if self.muted {
+            "\u{1F507}"
+        } else {
+            "\u{1F50A}"
+        };
 
-        let percent = (self.volume as usize / MAX_VOLUME) * PROG_BAR_LEN;
+        write!(f, "{} {}/{}", pictogram, self.volume, MAX_VOLUME)?;
+
+        let percent = (self.volume as usize * PROG_BAR_LEN) / MAX_VOLUME;
 
         write!(f, " [{}{}]", "\u{2587}".repeat(percent), "-".repeat(PROG_BAR_LEN - percent))
     }
