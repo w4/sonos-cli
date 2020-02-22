@@ -257,13 +257,13 @@ pub fn discover(pretty: bool, invalidate: bool) -> Vec<sonos::Speaker> {
 struct Track {
     pub title: String,
     pub artist: String,
-    pub album: String,
+    pub album: Option<String>,
     pub running_time: std::time::Duration,
     pub duration: std::time::Duration
 }
 
 impl Track {
-    pub fn new(speaker: &Speaker) -> Result<Track, sonos::Error> {
+    pub fn new(speaker: &Speaker) -> Result<Track, failure::Error> {
         let track = speaker.track()?;
 
         Ok(Self {
@@ -280,7 +280,10 @@ impl std::fmt::Display for Track {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "\u{1F3A4}  {}", self.artist)?;
         writeln!(f, "\u{1F3B5}  {}", self.title)?;
-        writeln!(f, "\u{1F4BF}  {}", self.album)?;
+
+        if let Some(album) = &self.album {
+            writeln!(f, "\u{1F4BF}  {}", album)?;
+        }
 
         let running_time = duration_to_hms(self.running_time);
         let duration = duration_to_hms(self.duration);

@@ -1,14 +1,16 @@
 [package]
 name = "sonos-cli"
 version = "0.1.0"
-authors = ["Jordan Doyle <jordan@9t9t9.com>"]
+authors = ["Jordan Doyle <jordan@doyle.la>"]
 
 [dependencies]
-sonos = ""
+sonos = { git = "https://github.com/w4/sonos.rs" }
 clap = ""
 log = ""
 fern = ""
 chrono = ""
+
+failure = ""
 
 serde = ""
 serde_derive = ""
