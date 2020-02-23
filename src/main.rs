@@ -12,6 +12,7 @@ use std::net::IpAddr;
 use sonos::Speaker;
 
 use failure::Fallible;
+use crate::discovery::find_speaker_by_name;
 
 fn argparse<'a, 'b>() -> clap::App<'a, 'b> {
     use clap::{App, AppSettings, Arg, SubCommand};
@@ -44,6 +45,12 @@ fn argparse<'a, 'b>() -> clap::App<'a, 'b> {
                         .arg(Arg::with_name("uri").help("Queue position to skip to or a Sonos URI to play").index(1).conflicts_with_all(&["tv", "line-in"]))
                 )
         )
+        .subcommand(SubCommand::with_name("group").about("Group this speaker with the given master")
+                        .arg(Arg::with_name("MASTER")
+                                .help("Name of the speaker to group with")
+                                .required(true)
+                                .index(1)))
+        .subcommand(SubCommand::with_name("ungroup").about("Ungroup this speaker from the master"))
         .subcommand(SubCommand::with_name("seek").about("Seek to a specific timestamp on the current track")
                         .arg(Arg::with_name("TIMESTAMP")
                                 .help("hh:mm:ss/mm:ss")
@@ -93,6 +100,14 @@ async fn main() -> Fallible<()> {
                 _ => print_struct!(args, &Track::new(&speaker).await?)
             }
         },
+        ("group", Some(sub)) => {
+            let master = sub.value_of("MASTER").expect("master");
+            speaker.group(&match master.parse::<IpAddr>() {
+                Ok(ip) => Speaker::from_ip(ip).await?,
+                Err(_) => discovery::find_speaker_by_name(master).await?,
+            }).await?
+        },
+        ("ungroup", _) => speaker.ungroup().await?,
         ("info", _) => print_struct!(args, &Info::new(&speaker)),
         ("volume", Some(sub)) => match sub.value_of("VOLUME") {
             Some(volume) => speaker.set_volume(volume.parse()?).await?,
