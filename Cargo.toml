@@ -2,6 +2,7 @@
 name = "sonos-cli"
 version = "0.1.0"
 authors = ["Jordan Doyle <jordan@doyle.la>"]
+edition = "2018"
 
 [dependencies]
 sonos = { git = "https://github.com/w4/sonos.rs" }
@@ -11,6 +12,9 @@ fern = ""
 chrono = ""
 
 failure = ""
+
+tokio = { version = "0.2", features = ["full"] }
+futures = "0.3"
 
 serde = ""
 serde_derive = ""
